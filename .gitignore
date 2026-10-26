@@ -1,0 +1,13 @@
+# 仮想環境（PCごとに作り直すため記録しない）
+.venv/
+
+# Python・pytest が自動で作る一時ファイル
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Excel でファイルを開いている間にできる一時ファイル
+~$*
+
+# ツールが毎回作り直す集計結果
+output/

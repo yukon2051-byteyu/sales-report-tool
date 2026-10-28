@@ -1,17 +1,20 @@
 """売上データ集計ツール
 
 店舗ごとの売上ファイル（CSV・Excel）を読み込み、集計するツールです。
-現在はステップ5：店舗別・カテゴリ別・月別の集計を作る段階です。
+現在はステップ6：集計結果を Excel ファイルに出力する段階です。
 """
 
 from pathlib import Path
 
 import pandas as pd
+from openpyxl.styles import Font, PatternFill
+from openpyxl.worksheet.worksheet import Worksheet
 
 # このファイルがあるフォルダを基準にする。
 # こうすると、どのフォルダから実行しても input フォルダを正しく見つけられる。
 BASE_DIR = Path(__file__).parent
 INPUT_DIR = BASE_DIR / "input"
+OUTPUT_DIR = BASE_DIR / "output"
 
 # 読み込みに対応しているファイルの種類（拡張子）
 SUPPORTED_SUFFIXES = (".csv", ".xlsx")
@@ -82,6 +85,55 @@ def summarize_by_month(df: pd.DataFrame) -> pd.DataFrame:
     return summary.sort_values("年月", ignore_index=True)
 
 
+def make_report_name(df: pd.DataFrame) -> str:
+    """データの期間から、出力ファイル名（例：売上集計_2026-09_2026-10.xlsx）を作る。"""
+    months = df["日付"].dt.strftime("%Y-%m")
+    first, last = months.min(), months.max()
+    # 1か月分だけなら「2026-09」、複数月なら「2026-09_2026-10」とする。
+    period = first if first == last else f"{first}_{last}"
+    return f"売上集計_{period}.xlsx"
+
+
+def _format_sheet(ws: Worksheet) -> None:
+    """Excel のシートを見やすく整える（見出しの装飾・数値の書式・列幅）。"""
+    header_font = Font(bold=True)
+    header_fill = PatternFill(fill_type="solid", fgColor="DDEBF7")
+
+    for column in ws.columns:
+        header = column[0]
+        header.font = header_font
+        header.fill = header_fill
+        ws.column_dimensions[header.column_letter].width = 14
+
+        # 2行目以降（データ部分）の表示形式を、列の内容に合わせて設定する
+        for cell in column[1:]:
+            if header.value == "日付":
+                cell.number_format = "yyyy/mm/dd"
+            elif isinstance(cell.value, (int, float)):
+                cell.number_format = "#,##0"  # 3桁区切り（例：49,690）
+
+    # 見出し行を固定し、下にスクロールしても見出しが見えるようにする
+    ws.freeze_panes = "A2"
+
+
+def write_report(df: pd.DataFrame, path: Path) -> None:
+    """集計結果と全データを、シートを分けて1つの Excel ファイルに書き出す。"""
+    # シート名と、そのシートに書く表の組み合わせ
+    sheets = {
+        "店舗別": summarize_by_store(df),
+        "カテゴリ別": summarize_by_category(df),
+        "月別": summarize_by_month(df),
+        "全データ": df,
+    }
+
+    path.parent.mkdir(parents=True, exist_ok=True)  # output フォルダがなければ作る
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        for sheet_name, table in sheets.items():
+            # index=False で、pandas の行番号（0, 1, 2…）を Excel に書かないようにする
+            table.to_excel(writer, sheet_name=sheet_name, index=False)
+            _format_sheet(writer.sheets[sheet_name])
+
+
 def main() -> None:
     files = find_input_files(INPUT_DIR)
     print(f"{len(files)} 件のファイルが見つかりました")
@@ -97,6 +149,10 @@ def main() -> None:
     print(summarize_by_category(df))
     print("\n【月別】")
     print(summarize_by_month(df))
+
+    output_path = OUTPUT_DIR / make_report_name(df)
+    write_report(df, output_path)
+    print(f"\n集計結果を保存しました: {output_path.relative_to(BASE_DIR)}")
 
 
 # このファイルを直接実行したときだけ main() を動かす（テストから読み込んだときは動かさない）

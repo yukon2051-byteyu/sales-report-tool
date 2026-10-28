@@ -1,7 +1,7 @@
 """売上データ集計ツール
 
 店舗ごとの売上ファイル（CSV・Excel）を読み込み、集計するツールです。
-現在はステップ4：店舗別の集計を作る段階です。
+現在はステップ5：店舗別・カテゴリ別・月別の集計を作る段階です。
 """
 
 from pathlib import Path
@@ -52,14 +52,34 @@ def load_all(files: list[Path]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def _sum_by(df: pd.DataFrame, key: str) -> pd.DataFrame:
+    """key の列でグループに分け、金額と数量を合計する（各集計で共通の処理）。"""
+    # groupby(key) で key ごとのグループに分け、各グループの金額と数量を合計する。
+    # Excel のピボットテーブルで「行に key、値に金額と数量の合計」を指定するのと同じ処理。
+    # as_index=False で、key を行番号ではなく通常の列として残す。
+    summary = df.groupby(key, as_index=False)[["金額", "数量"]].sum()
+    return summary.rename(columns={"金額": "売上合計", "数量": "数量合計"})
+
+
 def summarize_by_store(df: pd.DataFrame) -> pd.DataFrame:
     """店舗ごとの売上合計・数量合計を計算し、売上の多い順に並べて返す。"""
-    # groupby("店舗名") で店舗ごとのグループに分け、各グループの金額と数量を合計する。
-    # Excel のピボットテーブルで「行に店舗名、値に金額と数量の合計」を指定するのと同じ処理。
-    # as_index=False で、店舗名を行番号ではなく通常の列として残す。
-    summary = df.groupby("店舗名", as_index=False)[["金額", "数量"]].sum()
-    summary = summary.rename(columns={"金額": "売上合計", "数量": "数量合計"})
+    summary = _sum_by(df, "店舗名")
     return summary.sort_values("売上合計", ascending=False, ignore_index=True)
+
+
+def summarize_by_category(df: pd.DataFrame) -> pd.DataFrame:
+    """カテゴリごとの売上合計・数量合計を計算し、売上の多い順に並べて返す。"""
+    summary = _sum_by(df, "カテゴリ")
+    return summary.sort_values("売上合計", ascending=False, ignore_index=True)
+
+
+def summarize_by_month(df: pd.DataFrame) -> pd.DataFrame:
+    """月ごとの売上合計・数量合計を計算し、古い月から順に並べて返す。"""
+    # 日付（例：2026-09-15）から「2026-09」という年月の文字を作り、新しい列として追加する。
+    # assign は元の表を変えずに、列を足した新しい表を作る。
+    with_month = df.assign(年月=df["日付"].dt.strftime("%Y-%m"))
+    summary = _sum_by(with_month, "年月")
+    return summary.sort_values("年月", ignore_index=True)
 
 
 def main() -> None:
@@ -73,6 +93,10 @@ def main() -> None:
 
     print("\n【店舗別】")
     print(summarize_by_store(df))
+    print("\n【カテゴリ別】")
+    print(summarize_by_category(df))
+    print("\n【月別】")
+    print(summarize_by_month(df))
 
 
 # このファイルを直接実行したときだけ main() を動かす（テストから読み込んだときは動かさない）

@@ -78,10 +78,64 @@ def test_load_all_は複数ファイルを結合する(tmp_path):
         encoding="utf-8",
     )
 
-    df = sales_tool.load_all(sales_tool.find_input_files(tmp_path))
+    df, warnings = sales_tool.load_all(sales_tool.find_input_files(tmp_path))
 
     assert len(df) == 3
     assert list(df.index) == [0, 1, 2]  # 行番号が振り直されている
+    assert warnings == []
+
+
+# --- エラー処理 -------------------------------------------------------------
+
+def test_入力フォルダがないとエラー(tmp_path):
+    with pytest.raises(sales_tool.InputDataError, match="入力フォルダが見つかりません"):
+        sales_tool.find_input_files(tmp_path / "存在しないフォルダ")
+
+
+def test_必要な列がないとエラー(tmp_path):
+    path = tmp_path / "test.csv"
+    path.write_text("日付,店舗名,金額\n2026-09-01,A店,200\n", encoding="utf-8")
+
+    with pytest.raises(sales_tool.InputDataError, match="必要な列がありません: 商品名, カテゴリ, 単価, 数量"):
+        sales_tool.load_file(path)
+
+
+def test_ShiftJISのCSVは保存し直すよう案内する(tmp_path):
+    path = tmp_path / "test.csv"
+    path.write_text(
+        "日付,店舗名,商品名,カテゴリ,単価,数量,金額\n2026-09-01,A店,ペン,文具,100,2,200\n",
+        encoding="shift_jis",
+    )
+
+    with pytest.raises(sales_tool.InputDataError, match="CSV UTF-8"):
+        sales_tool.load_file(path)
+
+
+def test_ファイルが1つもないと終了コード1(tmp_path, capsys):
+    assert sales_tool.main(["--input", str(tmp_path)]) == 1
+    assert "読み込むファイル" in capsys.readouterr().err
+
+
+# --- データのチェック ---------------------------------------------------------
+
+def test_check_data_は問題のある行をファイル名と行番号つきで知らせる(tmp_path):
+    path = tmp_path / "test.csv"
+    path.write_text(
+        "日付,店舗名,商品名,カテゴリ,単価,数量,金額\n"
+        "2026-09-01,A店,ペン,文具,100,2,200\n"   # 2行目：問題なし
+        "2026-09-02,A店,ペン,文具,100,-1,-100\n"  # 3行目：マイナス
+        "2026-09-03,A店,ペン,文具,100,2,300\n"   # 4行目：金額の不一致
+        "9月4日,A店,ペン,文具,100,,200\n",        # 5行目：日付が読めない・数量が空欄
+        encoding="utf-8",
+    )
+
+    warnings = sales_tool.check_data(sales_tool.load_file(path), "test.csv")
+
+    assert warnings == [
+        "test.csv 3行目: マイナスの値があります（数量, 金額）",
+        "test.csv 4行目: 金額が単価×数量と一致しません（金額 300 / 単価×数量 200）",
+        "test.csv 5行目: 空欄または読み取れない値があります（日付, 数量）",
+    ]
 
 
 # --- 集計 -----------------------------------------------------------------
@@ -131,9 +185,15 @@ def test_write_report_は4つのシートを出力する(sales, tmp_path):
 
 # --- サンプルデータを使った全体の確認 -----------------------------------------
 
-def test_サンプルデータの集計結果が手計算と一致する():
-    df = sales_tool.load_all(sales_tool.find_input_files(sales_tool.INPUT_DIR))
+def test_main_は指定した出力フォルダに保存して終了コード0(tmp_path):
+    assert sales_tool.main(["--output", str(tmp_path)]) == 0
+    assert (tmp_path / "売上集計_2026-09_2026-10.xlsx").exists()
 
+
+def test_サンプルデータの集計結果が手計算と一致する():
+    df, warnings = sales_tool.load_all(sales_tool.find_input_files(sales_tool.INPUT_DIR))
+
+    assert warnings == []  # サンプルデータには入力ミスがない
     assert len(df) == 64
     assert df["金額"].sum() == 99120
 

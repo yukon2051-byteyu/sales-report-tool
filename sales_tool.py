@@ -1,7 +1,7 @@
 """売上データ集計ツール
 
 店舗ごとの売上ファイル（CSV・Excel）を読み込み、集計するツールです。
-現在はステップ3：フォルダ内のファイルをすべて読み込んで結合する段階です。
+現在はステップ4：店舗別の集計を作る段階です。
 """
 
 from pathlib import Path
@@ -52,6 +52,16 @@ def load_all(files: list[Path]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def summarize_by_store(df: pd.DataFrame) -> pd.DataFrame:
+    """店舗ごとの売上合計・数量合計を計算し、売上の多い順に並べて返す。"""
+    # groupby("店舗名") で店舗ごとのグループに分け、各グループの金額と数量を合計する。
+    # Excel のピボットテーブルで「行に店舗名、値に金額と数量の合計」を指定するのと同じ処理。
+    # as_index=False で、店舗名を行番号ではなく通常の列として残す。
+    summary = df.groupby("店舗名", as_index=False)[["金額", "数量"]].sum()
+    summary = summary.rename(columns={"金額": "売上合計", "数量": "数量合計"})
+    return summary.sort_values("売上合計", ascending=False, ignore_index=True)
+
+
 def main() -> None:
     files = find_input_files(INPUT_DIR)
     print(f"{len(files)} 件のファイルが見つかりました")
@@ -60,7 +70,9 @@ def main() -> None:
 
     df = load_all(files)
     print(f"合計 {len(df)} 行 / 売上合計 {df['金額'].sum():,} 円")
-    print(df)
+
+    print("\n【店舗別】")
+    print(summarize_by_store(df))
 
 
 # このファイルを直接実行したときだけ main() を動かす（テストから読み込んだときは動かさない）

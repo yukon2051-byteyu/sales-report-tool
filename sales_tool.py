@@ -1,7 +1,7 @@
 """売上データ集計ツール
 
 店舗ごとの売上ファイル（CSV・Excel）を読み込み、集計するツールです。
-現在はステップ2：CSV ファイル1つを読み込んで表示する段階です。
+現在はステップ3：フォルダ内のファイルをすべて読み込んで結合する段階です。
 """
 
 from pathlib import Path
@@ -13,20 +13,53 @@ import pandas as pd
 BASE_DIR = Path(__file__).parent
 INPUT_DIR = BASE_DIR / "input"
 
+# 読み込みに対応しているファイルの種類（拡張子）
+SUPPORTED_SUFFIXES = (".csv", ".xlsx")
 
-def load_csv(path: Path) -> pd.DataFrame:
-    """CSV ファイルを読み込み、表（DataFrame）として返す。"""
-    # encoding="utf-8-sig" は、先頭に BOM（UTF-8 の目印）があってもなくても読める指定。
-    # BOM 付きの CSV を "utf-8" で読むと、1列目の列名に見えない記号が混ざることがあるため。
-    return pd.read_csv(path, encoding="utf-8-sig")
+
+def find_input_files(folder: Path) -> list[Path]:
+    """フォルダの中から、読み込み対象のファイルを探して名前順に返す。"""
+    files = []
+    for path in folder.iterdir():
+        # Excel でファイルを開いている間にできる一時ファイル（~$ で始まる）は対象外。
+        # 中身が売上データではないため、読み込むとエラーになる。
+        if path.name.startswith("~$"):
+            continue
+        if path.suffix.lower() in SUPPORTED_SUFFIXES:
+            files.append(path)
+    return sorted(files)
+
+
+def load_file(path: Path) -> pd.DataFrame:
+    """CSV または Excel ファイルを読み込み、表（DataFrame）として返す。"""
+    if path.suffix.lower() == ".csv":
+        # encoding="utf-8-sig" は、先頭に BOM（UTF-8 の目印）があってもなくても読める指定。
+        df = pd.read_csv(path, encoding="utf-8-sig")
+    else:
+        df = pd.read_excel(path)
+
+    # CSV の日付は「文字」、Excel の日付は「日付の値」として読み込まれる。
+    # 形式がバラバラだと月別の集計ができないため、ここで日付の値にそろえる。
+    df["日付"] = pd.to_datetime(df["日付"])
+    return df
+
+
+def load_all(files: list[Path]) -> pd.DataFrame:
+    """複数のファイルを読み込み、1つの表にまとめて返す。"""
+    frames = [load_file(path) for path in files]
+    # ignore_index=True で、行番号（インデックス）を 0 から振り直す。
+    # 指定しないと、ファイルごとの行番号（0〜11 など）が重複してしまう。
+    return pd.concat(frames, ignore_index=True)
 
 
 def main() -> None:
-    path = INPUT_DIR / "2026-09_東店.csv"
-    df = load_csv(path)
+    files = find_input_files(INPUT_DIR)
+    print(f"{len(files)} 件のファイルが見つかりました")
+    for path in files:
+        print(f"  - {path.name}")
 
-    print(f"読み込んだファイル: {path.name}")
-    print(f"行数: {len(df)} 行")
+    df = load_all(files)
+    print(f"合計 {len(df)} 行 / 売上合計 {df['金額'].sum():,} 円")
     print(df)
 
 

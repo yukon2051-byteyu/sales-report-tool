@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# テストファイルの置き場所
+testpaths = ["tests"]
+# プロジェクトのフォルダを読み込み先に加え、テストから sales_tool を import できるようにする
+pythonpath = ["."]

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Font, PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -180,6 +181,31 @@ def _format_sheet(ws: Worksheet) -> None:
     ws.freeze_panes = "A2"
 
 
+def _add_bar_chart(ws: Worksheet, title: str) -> None:
+    """集計シート（A列：項目名、B列：売上合計）の右側に、売上合計の棒グラフを追加する。"""
+    chart = BarChart()
+    chart.title = title
+    chart.y_axis.title = "売上合計（円）"
+    chart.y_axis.numFmt = "#,##0"
+    # 縦軸を 0 から始める。自動のままだと値が近いとき（例：49,690 と 49,430）に
+    # 途中から始まり、わずかな差が大きな差に見えてしまうため。
+    chart.y_axis.scaling.min = 0
+    chart.legend = None  # 系列が「売上合計」1つだけなので凡例は不要
+    # 最近の Excel では、これを指定しないと軸（目盛りや項目名）が表示されないことがある
+    chart.x_axis.delete = False
+    chart.y_axis.delete = False
+
+    last_row = ws.max_row
+    # グラフにする範囲：B列（売上合計）の値と、A列（店舗名など）の項目名
+    values = Reference(ws, min_col=2, min_row=1, max_row=last_row)  # 1行目の見出しを系列名に使う
+    labels = Reference(ws, min_col=1, min_row=2, max_row=last_row)
+    chart.add_data(values, titles_from_data=True)
+    chart.set_categories(labels)
+
+    chart.width, chart.height = 16, 8  # 大きさ（cm）
+    ws.add_chart(chart, "E2")
+
+
 def write_report(df: pd.DataFrame, path: Path) -> None:
     """集計結果と全データを、シートを分けて1つの Excel ファイルに書き出す。"""
     # シート名と、そのシートに書く表の組み合わせ
@@ -196,6 +222,9 @@ def write_report(df: pd.DataFrame, path: Path) -> None:
             # index=False で、pandas の行番号（0, 1, 2…）を Excel に書かないようにする
             table.to_excel(writer, sheet_name=sheet_name, index=False)
             _format_sheet(writer.sheets[sheet_name])
+            # 集計シートにはグラフを付ける（全データは明細なので付けない）
+            if sheet_name != "全データ":
+                _add_bar_chart(writer.sheets[sheet_name], f"{sheet_name}の売上合計")
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:

@@ -4,6 +4,7 @@
 そのため、input フォルダや output フォルダには影響しない。
 """
 
+import zipfile
 from datetime import date
 
 import pandas as pd
@@ -181,6 +182,21 @@ def test_write_report_は4つのシートを出力する(sales, tmp_path):
     sheets = pd.read_excel(path, sheet_name=None)
     assert list(sheets) == ["店舗別", "カテゴリ別", "月別", "全データ"]
     assert len(sheets["全データ"]) == 4
+
+
+def test_write_report_は集計シートにグラフを入れる(sales, tmp_path):
+    path = tmp_path / "report.xlsx"
+
+    sales_tool.write_report(sales, path)
+
+    # xlsx は複数のファイルを zip でまとめた形式で、グラフは xl/charts/ の中に保存される。
+    # （openpyxl は読み込み時にグラフを読まないため、zip の中身を直接確かめる）
+    with zipfile.ZipFile(path) as z:
+        charts = sorted(n for n in z.namelist() if n.startswith("xl/charts/chart"))
+        titles = [z.read(n).decode("utf-8") for n in charts]
+    assert len(charts) == 3
+    assert any("店舗別の売上合計" in t for t in titles)
+    assert any("月別の売上合計" in t for t in titles)
 
 
 # --- サンプルデータを使った全体の確認 -----------------------------------------

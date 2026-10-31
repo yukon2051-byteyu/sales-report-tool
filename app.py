@@ -59,7 +59,7 @@ def show_summary(table: pd.DataFrame, key: str, label_angle: int = 0) -> None:
     """集計表と棒グラフを左右に並べて表示する。"""
     left, right = st.columns([2, 3])
     left.dataframe(table.style.format("{:,}", subset=["売上合計", "数量合計"]), hide_index=True)
-    right.altair_chart(bar_chart(table, key, label_angle), use_container_width=True)
+    right.altair_chart(bar_chart(table, key, label_angle), width="stretch")
 
 
 def main() -> None:

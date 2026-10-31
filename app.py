@@ -37,14 +37,17 @@ def make_report_bytes(df: pd.DataFrame, folder: Path) -> tuple[str, bytes]:
     return path.name, path.read_bytes()
 
 
-def bar_chart(table: pd.DataFrame, key: str) -> alt.Chart:
-    """集計表から売上合計の棒グラフを作る（並び順は表と同じ、縦軸は 0 から）。"""
+def bar_chart(table: pd.DataFrame, key: str, label_angle: int = 0) -> alt.Chart:
+    """集計表から売上合計の棒グラフを作る（並び順は表と同じ、縦軸は 0 から）。
+
+    label_angle は横軸の項目名の角度。項目名が長いとき（週別など）は斜めにして重なりを防ぐ。
+    """
     return (
         alt.Chart(table)
         .mark_bar()
         .encode(
             # sort=None で、表の並び順（売上の多い順・古い月から順）のまま表示する
-            x=alt.X(f"{key}:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
+            x=alt.X(f"{key}:N", sort=None, title=None, axis=alt.Axis(labelAngle=label_angle)),
             y=alt.Y("売上合計:Q", title="売上合計（円）", axis=alt.Axis(format=","),
                     scale=alt.Scale(zero=True)),
             tooltip=[key, alt.Tooltip("売上合計:Q", format=","), alt.Tooltip("数量合計:Q", format=",")],
@@ -52,17 +55,17 @@ def bar_chart(table: pd.DataFrame, key: str) -> alt.Chart:
     )
 
 
-def show_summary(table: pd.DataFrame, key: str) -> None:
+def show_summary(table: pd.DataFrame, key: str, label_angle: int = 0) -> None:
     """集計表と棒グラフを左右に並べて表示する。"""
     left, right = st.columns([2, 3])
     left.dataframe(table.style.format("{:,}", subset=["売上合計", "数量合計"]), hide_index=True)
-    right.altair_chart(bar_chart(table, key), use_container_width=True)
+    right.altair_chart(bar_chart(table, key, label_angle), use_container_width=True)
 
 
 def main() -> None:
     st.set_page_config(page_title="売上データ集計ツール", layout="wide")
     st.title("売上データ集計ツール")
-    st.caption("店舗ごとの売上ファイル（CSV・Excel）をまとめて読み込み、店舗別・カテゴリ別・月別に集計します。")
+    st.caption("店舗ごとの売上ファイル（CSV・Excel）をまとめて読み込み、店舗別・カテゴリ別・月別・週別に集計します。")
 
     source = st.radio("データの選び方", [SOURCE_UPLOAD, SOURCE_SAMPLE], horizontal=True)
 
@@ -104,13 +107,17 @@ def main() -> None:
                     st.warning(warning)
 
         # --- 集計結果 ---
-        tab_store, tab_category, tab_month, tab_all = st.tabs(["店舗別", "カテゴリ別", "月別", "全データ"])
+        tab_store, tab_category, tab_month, tab_week, tab_all = st.tabs(
+            ["店舗別", "カテゴリ別", "月別", "週別", "全データ"]
+        )
         with tab_store:
             show_summary(sales_tool.summarize_by_store(df), "店舗名")
         with tab_category:
             show_summary(sales_tool.summarize_by_category(df), "カテゴリ")
         with tab_month:
             show_summary(sales_tool.summarize_by_month(df), "年月")
+        with tab_week:
+            show_summary(sales_tool.summarize_by_week(df), "週", label_angle=-45)
         with tab_all:
             st.dataframe(df, hide_index=True, column_config={"日付": st.column_config.DateColumn(format="YYYY/MM/DD")})
 

@@ -35,7 +35,7 @@ def test_サンプルデータを選ぶと集計結果が表示される(monkeyp
     assert not at.exception
     metrics = {m.label: m.value for m in at.metric}
     assert metrics == {"ファイル数": "6 件", "データ行数": "64 行", "売上合計": "99,120 円"}
-    assert [t.label for t in at.tabs] == ["店舗別", "カテゴリ別", "月別", "全データ"]
+    assert [t.label for t in at.tabs] == ["店舗別", "カテゴリ別", "月別", "週別", "全データ"]
     assert len(at.warning) == 0  # サンプルデータには入力ミスがない
     assert len(at.get("download_button")) == 1
 

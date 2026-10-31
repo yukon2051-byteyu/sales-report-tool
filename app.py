@@ -87,7 +87,7 @@ def main() -> None:
             files = save_uploads(uploaded, upload_dir)
         else:
             files = sales_tool.find_input_files(sales_tool.INPUT_DIR)
-            st.caption("input フォルダの架空のサンプルデータ（2026年9月〜10月・3店舗）を使っています。")
+            st.caption("input フォルダの架空のサンプルデータ（2026年5月〜10月・3店舗）を使っています。")
 
         try:
             df, warnings = sales_tool.load_all(files)

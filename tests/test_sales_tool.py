@@ -190,13 +190,13 @@ def test_ファイル名に期間が入る(sales):
     assert sales_tool.make_report_name(one_month) == "売上集計_2026-09.xlsx"
 
 
-def test_write_report_は4つのシートを出力する(sales, tmp_path):
+def test_write_report_は5つのシートを出力する(sales, tmp_path):
     path = tmp_path / "out" / "report.xlsx"  # out フォルダはまだ存在しない
 
     sales_tool.write_report(sales, path)
 
     sheets = pd.read_excel(path, sheet_name=None)
-    assert list(sheets) == ["店舗別", "カテゴリ別", "月別", "全データ"]
+    assert list(sheets) == ["店舗別", "カテゴリ別", "月別", "週別", "全データ"]
     assert len(sheets["全データ"]) == 4
 
 
@@ -210,9 +210,10 @@ def test_write_report_は集計シートにグラフを入れる(sales, tmp_path
     with zipfile.ZipFile(path) as z:
         charts = sorted(n for n in z.namelist() if n.startswith("xl/charts/chart"))
         titles = [z.read(n).decode("utf-8") for n in charts]
-    assert len(charts) == 3
+    assert len(charts) == 4
     assert any("店舗別の売上合計" in t for t in titles)
     assert any("月別の売上合計" in t for t in titles)
+    assert any("週別の売上合計" in t for t in titles)
 
 
 # --- サンプルデータを使った全体の確認 -----------------------------------------
@@ -237,3 +238,10 @@ def test_サンプルデータの集計結果が手計算と一致する():
 
     month = sales_tool.summarize_by_month(df).set_index("年月")["売上合計"]
     assert month.to_dict() == {"2026-09": 49690, "2026-10": 49430}
+
+    # 週別：9/1(火)〜10/31(土) のデータは、8/31(月)始まりから 10/26(月)始まりまでの9週に分かれる。
+    # どの週にも入らない行や、二重に数える行がないことを、合計の一致で確かめる。
+    week = sales_tool.summarize_by_week(df)
+    assert len(week) == 9
+    assert week["週"].iloc[0] == "2026-08-31〜2026-09-06"
+    assert week["売上合計"].sum() == 99120

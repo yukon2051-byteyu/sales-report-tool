@@ -1,6 +1,6 @@
 """売上データ集計ツール
 
-店舗ごとの売上ファイル（CSV・Excel）を読み込み、店舗別・カテゴリ別・月別に集計して
+店舗ごとの売上ファイル（CSV・Excel）を読み込み、店舗別・カテゴリ別・月別・週別に集計して
 Excel ファイルに出力するツールです。
 
 使い方:
@@ -230,6 +230,7 @@ def write_report(df: pd.DataFrame, path: Path) -> None:
         "店舗別": summarize_by_store(df),
         "カテゴリ別": summarize_by_category(df),
         "月別": summarize_by_month(df),
+        "週別": summarize_by_week(df),
         "全データ": df,
     }
 
@@ -277,6 +278,8 @@ def main(argv: list[str] | None = None) -> int:
         print(summarize_by_category(df))
         print("\n【月別】")
         print(summarize_by_month(df))
+        print("\n【週別】")
+        print(summarize_by_week(df))
 
     except InputDataError as e:
         print(f"エラー: {e}", file=sys.stderr)

@@ -2,10 +2,12 @@
 
 テスト用のデータはすべて架空のもので、pytest が用意する一時フォルダ（tmp_path）に作る。
 そのため、input フォルダや output フォルダには影響しない。
+全体の確認には、手で検算できる小さな固定データ（tests/data、2か月×3店舗・64行）を使う。
 """
 
 import zipfile
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -13,6 +15,9 @@ import pytest
 import sales_tool
 
 COLUMNS = ["日付", "店舗名", "商品名", "カテゴリ", "単価", "数量", "金額"]
+
+# テスト専用の固定データ。input/ のデモ用データを入れ替えても、テストの結果が変わらないようにする
+TEST_DATA_DIR = Path(__file__).parent / "data"
 
 
 def make_sales(rows: list[list]) -> pd.DataFrame:
@@ -216,17 +221,17 @@ def test_write_report_は集計シートにグラフを入れる(sales, tmp_path
     assert any("週別の売上合計" in t for t in titles)
 
 
-# --- サンプルデータを使った全体の確認 -----------------------------------------
+# --- 固定データを使った全体の確認 ---------------------------------------------
 
 def test_main_は指定した出力フォルダに保存して終了コード0(tmp_path):
-    assert sales_tool.main(["--output", str(tmp_path)]) == 0
+    assert sales_tool.main(["--input", str(TEST_DATA_DIR), "--output", str(tmp_path)]) == 0
     assert (tmp_path / "売上集計_2026-09_2026-10.xlsx").exists()
 
 
-def test_サンプルデータの集計結果が手計算と一致する():
-    df, warnings = sales_tool.load_all(sales_tool.find_input_files(sales_tool.INPUT_DIR))
+def test_固定データの集計結果が手計算と一致する():
+    df, warnings = sales_tool.load_all(sales_tool.find_input_files(TEST_DATA_DIR))
 
-    assert warnings == []  # サンプルデータには入力ミスがない
+    assert warnings == []  # 固定データには入力ミスがない
     assert len(df) == 64
     assert df["金額"].sum() == 99120
 

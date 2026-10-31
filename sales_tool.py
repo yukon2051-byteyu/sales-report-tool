@@ -150,6 +150,23 @@ def summarize_by_month(df: pd.DataFrame) -> pd.DataFrame:
     return summary.sort_values("年月", ignore_index=True)
 
 
+def summarize_by_week(df: pd.DataFrame) -> pd.DataFrame:
+    """週ごと（月曜始まり）の売上合計・数量合計を計算し、古い週から順に並べて返す。"""
+    # 各日付から「その週の月曜日」を求める。day_of_week は月曜=0〜日曜=6 なので、
+    # その日数だけ日付を戻すと月曜日になる（例：2026-10-01(木) − 3日 = 2026-09-28(月)）。
+    # normalize で時刻を 0:00 にそろえ、同じ日の売上が別の週として分かれないようにする。
+    dates = df["日付"].dt.normalize()
+    monday = dates - pd.to_timedelta(dates.dt.day_of_week, unit="D")
+    summary = _sum_by(df.assign(週の月曜=monday), "週の月曜")
+    summary = summary.sort_values("週の月曜", ignore_index=True)
+
+    # 表やグラフで期間がひと目で分かるよう、「2026-09-28〜2026-10-04」の形の文字にする
+    sunday = summary["週の月曜"] + pd.Timedelta(days=6)
+    label = summary["週の月曜"].dt.strftime("%Y-%m-%d") + "〜" + sunday.dt.strftime("%Y-%m-%d")
+    summary.insert(0, "週", label)  # 先頭（A列）に置く。グラフは A列を項目名に使うため
+    return summary.drop(columns="週の月曜")
+
+
 def make_report_name(df: pd.DataFrame) -> str:
     """データの期間から、出力ファイル名（例：売上集計_2026-09_2026-10.xlsx）を作る。"""
     months = df["日付"].dt.strftime("%Y-%m")

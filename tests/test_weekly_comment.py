@@ -63,3 +63,47 @@ def test_前週のデータがなければ前週比は出さない():
     assert result.sales == 1000
     assert result.prev_sales is None
     assert result.change_rate is None
+
+
+# --- 文章にする ---------------------------------------------------------------
+
+def make_summary(**changes) -> weekly_comment.WeekSummary:
+    """テスト用の WeekSummary を作る（今週は 10/26（月）〜10/31（土）の6日分）。changes で一部を変えられる。"""
+    values = dict(
+        start=date(2026, 10, 26), last_day=date(2026, 10, 31), days=6,
+        sales=40260, prev_sales=28850, change_rate=(40260 - 28850) / 28850,
+        top_store="西店", top_store_sales=15250, top_category="文具", top_category_sales=14980,
+    )
+    values.update(changes)
+    return weekly_comment.WeekSummary(**values)
+
+
+def test_増えた週の文章():
+    assert weekly_comment.make_comment(make_summary()) == (
+        "今週（10/26（月）〜10/31（土）の6日分）の売上は 40,260円でした。\n"
+        "前週の同じ期間（10/19（月）〜10/24（土））の 28,850円と比べて、39.5%増えました。\n"
+        "店舗別では西店（15,250円）、カテゴリ別では文具（14,980円）の売上が最も多くなりました。"
+    )
+
+
+def test_1週間分そろった週で減った場合の文章():
+    summary = make_summary(last_day=date(2026, 11, 1), days=7, sales=30000, prev_sales=40000, change_rate=-0.25)
+
+    lines = weekly_comment.make_comment(summary).split("\n")
+
+    assert lines[0] == "今週（10/26（月）〜11/1（日））の売上は 30,000円でした。"  # 「○日分」は付けない
+    assert lines[1] == "前週の同じ期間（10/19（月）〜10/25（日））の 40,000円と比べて、25.0%減りました。"
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        (dict(prev_sales=None, change_rate=None), "前週のデータがないため、前週との比較はしていません。"),
+        (dict(prev_sales=0, change_rate=None), "前週の同じ期間（10/19（月）〜10/24（土））は売上がなかったため、増減率は出していません。"),
+        (dict(sales=28850, change_rate=0.0), "前週の同じ期間（10/19（月）〜10/24（土））の 28,850円と同じでした。"),
+    ],
+)
+def test_前週と比べられない場合や変化がない場合の文章(changes, expected):
+    lines = weekly_comment.make_comment(make_summary(**changes)).split("\n")
+
+    assert lines[1] == expected

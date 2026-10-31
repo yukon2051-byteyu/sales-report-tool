@@ -5,9 +5,11 @@
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
+
+WEEKDAYS = "月火水木金土日"  # date.weekday() の 0〜6 に対応する曜日
 
 
 @dataclass
@@ -69,3 +71,39 @@ def summarize_latest_week(df: pd.DataFrame) -> WeekSummary:
         top_category=top_category,
         top_category_sales=top_category_sales,
     )
+
+
+def _md(day: date) -> str:
+    """日付を「10/26（月）」の形の文字にする。"""
+    return f"{day.month}/{day.day}（{WEEKDAYS[day.weekday()]}）"
+
+
+def make_comment(summary: WeekSummary) -> str:
+    """まとめた数字から「今週の売上の特徴」の文章を作る（1文ごとに改行）。"""
+    period = f"{_md(summary.start)}〜{_md(summary.last_day)}"
+    if summary.days < 7:
+        # 週の途中までしかデータがないことを、読む人が誤解しないように書き添える
+        period += f"の{summary.days}日分"
+    sentences = [f"今週（{period}）の売上は {summary.sales:,}円でした。"]
+
+    one_week = timedelta(days=7)
+    prev_period = f"{_md(summary.start - one_week)}〜{_md(summary.last_day - one_week)}"
+    if summary.prev_sales is None:
+        sentences.append("前週のデータがないため、前週との比較はしていません。")
+    elif summary.change_rate is None:
+        sentences.append(f"前週の同じ期間（{prev_period}）は売上がなかったため、増減率は出していません。")
+    elif summary.change_rate == 0:
+        sentences.append(f"前週の同じ期間（{prev_period}）の {summary.prev_sales:,}円と同じでした。")
+    else:
+        direction = "増えました" if summary.change_rate > 0 else "減りました"
+        # :.1% は「0.395 → 39.5%」のように、100倍して小数第1位までのパーセントで表示する書式
+        sentences.append(
+            f"前週の同じ期間（{prev_period}）の {summary.prev_sales:,}円と比べて、"
+            f"{abs(summary.change_rate):.1%}{direction}。"
+        )
+
+    sentences.append(
+        f"店舗別では{summary.top_store}（{summary.top_store_sales:,}円）、"
+        f"カテゴリ別では{summary.top_category}（{summary.top_category_sales:,}円）の売上が最も多くなりました。"
+    )
+    return "\n".join(sentences)

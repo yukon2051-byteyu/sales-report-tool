@@ -39,6 +39,8 @@ def test_サンプルデータを選ぶと集計結果が表示される(monkeyp
     assert metrics == {"ファイル数": "6 件", "データ行数": "64 行", "売上合計": "99,120 円"}
     assert [t.label for t in at.tabs] == ["店舗別", "カテゴリ別", "月別", "週別", "全データ"]
     assert len(at.warning) == 0  # 固定データには入力ミスがない
+    # 今週の特徴の文章が、1行目から順に表示されている
+    assert at.info[0].value.startswith("今週（10/26（月）〜10/31（土）の6日分）の売上は 7,220円でした。  \n")
     assert len(at.get("download_button")) == 1
 
 

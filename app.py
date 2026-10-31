@@ -15,6 +15,7 @@ import pandas as pd
 import streamlit as st
 
 import sales_tool
+import weekly_comment
 
 SOURCE_UPLOAD = "ファイルをアップロード"
 SOURCE_SAMPLE = "サンプルデータで試す"
@@ -105,6 +106,12 @@ def main() -> None:
             with st.expander(f"⚠ 確認が必要なデータが {len(warnings)} 件あります（集計には含めています）", expanded=True):
                 for warning in warnings:
                     st.warning(warning)
+
+        # --- 今週の売上の特徴 ---
+        st.subheader("今週の売上の特徴")
+        comment = weekly_comment.make_comment(weekly_comment.summarize_latest_week(df))
+        # Streamlit の文字表示は、改行1つでは行が分かれない。行末に半角スペース2つを付けて改行させる
+        st.info(comment.replace("\n", "  \n"))
 
         # --- 集計結果 ---
         tab_store, tab_category, tab_month, tab_week, tab_all = st.tabs(
